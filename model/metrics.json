@@ -1,0 +1,48 @@
+{
+  "n_train": 803,
+  "n_test": 201,
+  "majority_baseline_accuracy": 0.6816,
+  "all_features_map": {
+    "accuracy": 0.6866,
+    "macro_precision": 0.553,
+    "macro_recall": 0.4163,
+    "macro_f1": 0.4109,
+    "roc_auc_ovr_macro": 0.6671
+  },
+  "all_features_balanced": {
+    "accuracy": 0.597,
+    "macro_precision": 0.4614,
+    "macro_recall": 0.472,
+    "macro_f1": 0.4627,
+    "roc_auc_ovr_macro": 0.6671
+  },
+  "size_unknown_balanced": {
+    "accuracy": 0.3333,
+    "macro_precision": 0.4703,
+    "macro_recall": 0.4744,
+    "macro_f1": 0.3275,
+    "roc_auc_ovr_macro": 0.6387
+  },
+  "confusion_matrix_balanced": [
+    [
+      94,
+      33,
+      10
+    ],
+    [
+      20,
+      21,
+      4
+    ],
+    [
+      7,
+      7,
+      5
+    ]
+  ],
+  "classes": [
+    "low",
+    "medium",
+    "high"
+  ]
+}

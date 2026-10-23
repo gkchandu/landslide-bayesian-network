@@ -1,0 +1,51 @@
+{
+  "season": {
+    "monsoon": 0,
+    "post_monsoon": 1,
+    "pre_monsoon": 2,
+    "winter": 3
+  },
+  "zone": {
+    "northeast_east_himalaya": 0,
+    "peninsular_central_other": 1,
+    "western_ghats": 2,
+    "western_himalaya": 3
+  },
+  "trigger": {
+    "continuous_rain": 0,
+    "downpour": 1,
+    "monsoon": 2,
+    "other": 3,
+    "rain": 4,
+    "unknown": 5
+  },
+  "category": {
+    "landslide": 0,
+    "mudslide": 1,
+    "other": 2,
+    "rock_fall": 3
+  },
+  "size": {
+    "large_plus": 0,
+    "medium": 1,
+    "small": 2,
+    "unknown": 3
+  },
+  "setting": {
+    "above_road": 0,
+    "natural_slope": 1,
+    "other": 2,
+    "unknown": 3
+  },
+  "accuracy": {
+    "approx": 0,
+    "coarse": 1,
+    "precise": 2,
+    "unknown": 3
+  },
+  "severity": {
+    "high": 0,
+    "low": 1,
+    "medium": 2
+  }
+}

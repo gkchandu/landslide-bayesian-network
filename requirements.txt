@@ -1,0 +1,11 @@
+# Minimum versions; after your app runs locally, run `pip freeze | grep -iE "pgmpy|streamlit|pandas|scikit-learn|numpy|matplotlib"`
+# and replace these with exact pinned versions (e.g. pgmpy==x.y.z) to avoid deployment surprises.
+pgmpy==1.1.2
+streamlit>=1.30
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+scipy>=1.10
+matplotlib>=3.7
+seaborn>=0.12
+pi
