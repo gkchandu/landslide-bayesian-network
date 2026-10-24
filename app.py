@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import altair as alt
 import streamlit as st
 from pgmpy.inference import VariableElimination
 
@@ -16,6 +17,27 @@ BASE = Path(__file__).parent
 MODEL_PATH = BASE / "model" / "bn_model.pkl"
 
 st.set_page_config(page_title="Landslide Risk - Bayesian Network", page_icon="⛰️", layout="wide")
+
+RISK_COLORS = {"low": "#2e9e6b", "medium": "#f0a30a", "high": "#d64545"}
+TEAL, GREY = "#1f8a70", "#9aa7b2"
+
+st.markdown("""
+<style>
+.hero {background: linear-gradient(100deg, #0f5c4d 0%, #1f8a70 55%, #e9c46a 130%);
+       padding: 1.6rem 2rem; border-radius: 16px; color: white; margin-bottom: 1.2rem;}
+.hero h1 {margin: 0; font-size: 2rem; color: white;}
+.hero p {margin: .3rem 0 0 0; opacity: .92; font-size: 1.02rem; color: white;}
+.risk-card {padding: 1.1rem 1.4rem; border-radius: 14px; margin-bottom: .8rem;}
+.risk-small {font-size: .85rem; letter-spacing: .06em; text-transform: uppercase; opacity: .75;}
+.risk-big {font-size: 2.4rem; font-weight: 800; line-height: 1.15;}
+.stat-card {padding: .8rem 1rem; border-radius: 12px; border-top: 5px solid; background: #f6f9f8;
+            text-align: center;}
+.stat-name {font-size: .85rem; opacity: .75;}
+.stat-value {font-size: 1.7rem; font-weight: 700;}
+.stat-typ {font-size: .75rem; opacity: .6;}
+button[data-baseweb="tab"] {font-weight: 600;}
+</style>
+""", unsafe_allow_html=True)
 
 NOT_SPECIFIED = "— not specified —"
 LABELS = {
@@ -60,6 +82,58 @@ def decide_label(probs, priors):
     return probs.index[int(np.argmax(probs.values / pri))]
 
 
+def risk_card(label):
+    c = RISK_COLORS[label]
+    st.markdown(f"""<div class="risk-card" style="border-left: 9px solid {c}; background: {c}22;">
+        <div class="risk-small">Predicted risk level</div>
+        <div class="risk-big" style="color: {c};">{label.upper()}</div>
+        <div>{SEVERITY_TEXT[label]} is the most elevated outcome compared with typical events.</div>
+        </div>""", unsafe_allow_html=True)
+
+
+def stat_card(name, value, typical, color):
+    st.markdown(f"""<div class="stat-card" style="border-top-color: {color};">
+        <div class="stat-name">P({name})</div><div class="stat-value" style="color: {color};">{value}</div>
+        <div class="stat-typ">typical {typical}</div></div>""", unsafe_allow_html=True)
+
+
+def prob_chart(probs):
+    df = pd.DataFrame({"severity": CLASSES, "probability": [float(probs[c]) for c in CLASSES]})
+    base = alt.Chart(df).encode(
+        x=alt.X("severity:N", sort=CLASSES, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=13)),
+        y=alt.Y("probability:Q", scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%"), title=None))
+    bars = base.mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8, size=70).encode(
+        color=alt.Color("severity:N", scale=alt.Scale(domain=CLASSES, range=[RISK_COLORS[c] for c in CLASSES]),
+                        legend=None),
+        tooltip=["severity", alt.Tooltip("probability:Q", format=".1%")])
+    text = base.mark_text(dy=-8, fontSize=14, fontWeight="bold").encode(text=alt.Text("probability:Q", format=".0%"))
+    return (bars + text).properties(height=300, width="container")
+
+
+def compare_chart(probs, base_probs):
+    rows = [{"state": pretty(k), "series": "given your evidence", "probability": float(v)} for k, v in probs.items()]
+    rows += [{"state": pretty(k), "series": "overall (no evidence)", "probability": float(v)}
+             for k, v in base_probs.items()]
+    df = pd.DataFrame(rows)
+    return alt.Chart(df).mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
+        x=alt.X("state:N", title=None, axis=alt.Axis(labelAngle=-25)),
+        xOffset="series:N",
+        y=alt.Y("probability:Q", axis=alt.Axis(format="%"), title=None),
+        color=alt.Color("series:N", scale=alt.Scale(domain=["given your evidence", "overall (no evidence)"],
+                                                    range=[TEAL, GREY]), legend=alt.Legend(title=None, orient="top")),
+        tooltip=["state", "series", alt.Tooltip("probability:Q", format=".1%")]
+    ).properties(height=320, width="container")
+
+
+def count_chart(counts):
+    df = pd.DataFrame({"risk_level": CLASSES, "events": [int(counts.get(c, 0)) for c in CLASSES]})
+    return alt.Chart(df).mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8, size=70).encode(
+        x=alt.X("risk_level:N", sort=CLASSES, title=None, axis=alt.Axis(labelAngle=0)),
+        y=alt.Y("events:Q", title="events", axis=alt.Axis(tickMinStep=1)),
+        color=alt.Color("risk_level:N", scale=alt.Scale(domain=CLASSES, range=[RISK_COLORS[c] for c in CLASSES]),
+                        legend=None)).properties(height=260, width="container")
+
+
 try:
     bundle, infer = load_model()
 except FileNotFoundError:
@@ -69,8 +143,9 @@ except FileNotFoundError:
 FEATURES, TARGET, CLASSES = bundle["features"], bundle["target"], bundle["classes"]
 STATES, PRIORS = bundle["state_names"], bundle["priors"]
 
-st.title("⛰️ Landslide Risk Assessment in India")
-st.caption("Bayesian Network inference trained on NASA's Global Landslide Catalog (India records)")
+st.markdown("""<div class="hero"><h1>⛰️ Landslide Risk Assessment in India</h1>
+<p>Bayesian Network inference trained on NASA's Global Landslide Catalog (India records)</p></div>""",
+            unsafe_allow_html=True)
 
 tab_pred, tab_batch, tab_explore, tab_perf, tab_about = st.tabs(
     ["Risk prediction", "Batch (file upload)", "Explore the network", "Model performance", "About"])
@@ -91,19 +166,17 @@ with tab_pred:
     if st.button("Predict risk", type="primary"):
         probs, used = query(infer, TARGET, evidence)
         label = decide_label(probs, PRIORS)
-        left, right = st.columns([1, 1])
+        left, right = st.columns([3, 2])
         with left:
             st.markdown("#### Severity probabilities")
-            chart = pd.DataFrame({"probability": probs.reindex(CLASSES).values},
-                                 index=[f"{c} ({SEVERITY_TEXT[c]})" for c in CLASSES])
-            st.bar_chart(chart)
+            st.altair_chart(prob_chart(probs))
         with right:
             st.markdown("#### Result")
-            msg = (f"**Risk level: {label.upper()}**  \n"
-                   f"{SEVERITY_TEXT[label]} is the most elevated outcome compared with typical events.")
-            {"low": st.success, "medium": st.warning, "high": st.error}[label](msg)
-            for c in CLASSES:
-                st.metric(f"P({c})", f"{probs[c]:.1%}", delta=f"typical {PRIORS[c]:.1%}", delta_color="off")
+            risk_card(label)
+            c1, c2, c3 = st.columns(3)
+            for col, c in zip((c1, c2, c3), CLASSES):
+                with col:
+                    stat_card(c, f"{probs[c]:.0%}", f"{PRIORS[c]:.0%}", RISK_COLORS[c])
             st.caption(f"Based on {len(used)} known factor(s). Typical = share of this severity among all "
                        "historical events in the data.")
 
@@ -136,7 +209,7 @@ with tab_batch:
     if "batch_out" in st.session_state:
         out = st.session_state["batch_out"]
         st.dataframe(out)
-        st.bar_chart(out["risk_level"].value_counts().reindex(CLASSES).fillna(0))
+        st.altair_chart(count_chart(out["risk_level"].value_counts()))
         st.download_button("Download results", out.to_csv(index=False),
                            file_name="landslide_predictions.csv", mime="text/csv")
         st.caption("Only the first 1000 rows are processed.")
@@ -160,9 +233,9 @@ with tab_explore:
     if st.button("Run inference"):
         probs, used = query(infer, target_var, ev2)
         base, _ = query(infer, target_var, {})
+        st.altair_chart(compare_chart(probs, base))
         df = pd.DataFrame({"given your evidence": probs, "overall (no evidence)": base})
         df.index = [pretty(i) for i in df.index]
-        st.bar_chart(df)
         st.dataframe(df.style.format("{:.1%}"))
         st.caption("Comparing the two columns shows which outcomes the evidence makes more or less likely.")
 
