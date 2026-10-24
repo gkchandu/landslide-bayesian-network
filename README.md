@@ -3,6 +3,7 @@
 Mini-project | Department of CSE (AI&ML), RYMEC Ballari | Academic Year 2025-26
 
 **Live demo:** https://landslide-bayesian-network.streamlit.app/
+
 **Source code:** https://github.com/gkchandu/landslide-bayesian-network
 
 ## Problem Statement
