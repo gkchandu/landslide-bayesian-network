@@ -56,7 +56,7 @@ EDGES = [
     ("trigger", TARGET),
     ("setting", TARGET),      # e.g. slopes above roads put people in the path
 ]
-ESS = 10          # equivalent sample size for the BDeu prior (smoothing of sparse CPTs)
+ESS = 100         # equivalent sample size for the BDeu prior (smoothing of sparse CPTs)
 SEED = 42
 
 

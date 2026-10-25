@@ -59,16 +59,23 @@ def learn_structure(df):
     return list(dag.edges())
 
 
-def draw_network(edges, title, path):
+# fixed, layered layout for the expert structure (causes on the left, outcome on the right)
+EXPERT_POS = {"season": (0, 3), "zone": (0, 0.5), "trigger": (1.3, 3), "category": (1.3, 1),
+              "setting": (1.3, -0.8), "size": (2.6, 3.0), "severity": (3.9, 1)}
+
+
+def draw_network(edges, title, path, pos=None):
     g = nx.DiGraph()
     g.add_nodes_from(COLS)
     g.add_edges_from(edges)
     colors = ["#e4572e" if n == TARGET else "#4c8bf5" for n in g.nodes()]
-    plt.figure(figsize=(7, 5))
-    pos = nx.spring_layout(g, seed=3, k=1.2)
-    nx.draw_networkx(g, pos, node_color=colors, node_size=2600, font_size=8, font_color="white",
-                     arrows=True, arrowsize=18, edge_color="#555")
-    plt.title(title); plt.axis("off"); plt.tight_layout(); plt.savefig(path, dpi=150); plt.close()
+    pos = pos or nx.circular_layout(g)                 # circular layout never overlaps nodes
+    plt.figure(figsize=(9, 5.5))
+    nx.draw_networkx(g, pos, node_color=colors, node_size=2600, font_size=9, font_color="white",
+                     arrows=True, arrowsize=20, edge_color="#555", width=1.6)
+    plt.margins(0.2)                                   # room so large nodes are not clipped
+    plt.title(title, fontsize=13); plt.axis("off")
+    plt.savefig(path, dpi=150, bbox_inches="tight", pad_inches=0.3); plt.close()
 
 
 # ---------- model wrappers: each returns P(class) in CLASSES order ----------
@@ -162,7 +169,7 @@ def main():
     learned = learn_structure(df)
     print("\nExpert edges :", EDGES)
     print("Learned edges:", learned)
-    draw_network(EDGES, "Expert-designed structure", "model/network_expert.png")
+    draw_network(EDGES, "Expert-designed structure", "model/network_expert.png", EXPERT_POS)
     draw_network(learned, "Learned structure (hill climbing + BIC)", "model/network_learned.png")
     print("\nSaved model/cv_results.csv, cv_comparison.png, network_expert.png, network_learned.png")
 

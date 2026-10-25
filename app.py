@@ -18,7 +18,7 @@ MODEL_PATH = BASE / "model" / "bn_model.pkl"
 
 st.set_page_config(page_title="Landslide Risk - Bayesian Network", page_icon="⛰️", layout="wide")
 
-RISK_COLORS = {"low": "#2e9e6b", "medium": "#f0a30a", "high": "#d64545"}
+RISK_COLORS = {"low": "#2e9e6b", "medium": "#f0a30a", "high": "#d64545", "uncertain": "#8a97a3"}
 TEAL, GREY = "#1f8a70", "#9aa7b2"
 
 st.markdown("""
@@ -56,6 +56,7 @@ SEVERITY_TEXT = {
     "low": "No fatalities expected",
     "medium": "1 to 4 fatalities",
     "high": "5 or more fatalities",
+    "uncertain": "Not enough historical data for this exact combination",
 }
 
 
@@ -78,6 +79,8 @@ def query(infer, variable, evidence):
 
 def decide_label(probs, priors):
     """Prior-adjusted decision: compare each class to its everyday base rate."""
+    if probs.max() - probs.min() < 1e-3:       # all outcomes equally likely: the data say nothing here
+        return "uncertain"
     pri = np.array([priors[c] for c in probs.index])
     return probs.index[int(np.argmax(probs.values / pri))]
 
@@ -87,7 +90,7 @@ def risk_card(label):
     st.markdown(f"""<div class="risk-card" style="border-left: 9px solid {c}; background: {c}22;">
         <div class="risk-small">Predicted risk level</div>
         <div class="risk-big" style="color: {c};">{label.upper()}</div>
-        <div>{SEVERITY_TEXT[label]} is the most elevated outcome compared with typical events.</div>
+        <div>{SEVERITY_TEXT[label]}{" is the most elevated outcome compared with typical events." if label != "uncertain" else ". Try specifying fewer or different factors."}</div>
         </div>""", unsafe_allow_html=True)
 
 
@@ -126,11 +129,12 @@ def compare_chart(probs, base_probs):
 
 
 def count_chart(counts):
-    df = pd.DataFrame({"risk_level": CLASSES, "events": [int(counts.get(c, 0)) for c in CLASSES]})
+    levels = CLASSES + ["uncertain"]
+    df = pd.DataFrame({"risk_level": levels, "events": [int(counts.get(c, 0)) for c in levels]})
     return alt.Chart(df).mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8, size=70).encode(
-        x=alt.X("risk_level:N", sort=CLASSES, title=None, axis=alt.Axis(labelAngle=0)),
+        x=alt.X("risk_level:N", sort=levels, title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("events:Q", title="events", axis=alt.Axis(tickMinStep=1)),
-        color=alt.Color("risk_level:N", scale=alt.Scale(domain=CLASSES, range=[RISK_COLORS[c] for c in CLASSES]),
+        color=alt.Color("risk_level:N", scale=alt.Scale(domain=levels, range=[RISK_COLORS[c] for c in levels]),
                         legend=None)).properties(height=260, width="container")
 
 
@@ -185,7 +189,15 @@ with tab_batch:
     st.subheader("Predict for many events at once")
     st.write("Upload a CSV with these columns: " + ", ".join(f"`{c}`" for c in FEATURES) +
              ". Empty or unrecognised values are treated as unknown.")
-    template = pd.DataFrame({c: [STATES[c][0], STATES[c][-1]] for c in FEATURES})
+    def pick(col, preferred):
+        return preferred if preferred in STATES[col] else STATES[col][0]
+    template = pd.DataFrame({
+        "season": [pick("season", "monsoon"), pick("season", "pre_monsoon")],
+        "zone": [pick("zone", "western_himalaya"), pick("zone", "western_ghats")],
+        "trigger": [pick("trigger", "downpour"), pick("trigger", "rain")],
+        "category": [pick("category", "landslide"), pick("category", "landslide")],
+        "size": [pick("size", "large_plus"), pick("size", "small")],
+        "setting": [pick("setting", "unknown"), pick("setting", "unknown")]})
     st.download_button("Download a sample template", template.to_csv(index=False),
                        file_name="sample_input.csv", mime="text/csv")
     up = st.file_uploader("Upload CSV", type="csv")

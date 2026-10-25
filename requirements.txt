@@ -9,3 +9,4 @@ scipy>=1.10
 matplotlib>=3.7
 seaborn>=0.12
 pi
+networkx>=3.0
