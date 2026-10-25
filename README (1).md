@@ -1,8 +1,9 @@
 # Landslide Risk Assessment in India Using Bayesian Network Inference
 
-Mini-project | Department of CSE (AI&ML), RYMEC Ballari | Academic Year 2025-26
+Mini-project | Department of CSE (AI&ML), RYMEC Ballari | Academic Year 2026-27
 
 **Live demo:** https://landslide-bayesian-network.streamlit.app/
+
 **Source code:** https://github.com/gkchandu/landslide-bayesian-network
 
 ## Problem Statement
