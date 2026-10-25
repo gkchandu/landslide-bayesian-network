@@ -25,7 +25,7 @@ high-fatality event?"
 - To design a Streamlit web application for risk prediction, batch file analysis and free-form probabilistic queries
 
 ## Expected Outcomes
-- Predict the probability of low / medium / high severity for a described landslide situation
+- Predict the probability of low / medium / high severity for a described landslide situation, or report that the data cannot say ("uncertain") when a combination has never been observed
 - Analyze a CSV file of many events at once and download the results
 - Answer what-if and diagnostic questions, such as which trigger is likely given a high-severity event
 - Show model performance, confusion matrices and network structures in the app
@@ -45,9 +45,9 @@ needed for a discrete Bayesian Network.
 
 ## Methodology
 1. **Network structure:** an expert-designed directed graph (region and season influence trigger; region influences type and setting; trigger and type influence size; size, trigger and setting influence severity). A second structure was learned from data with hill climbing and the BIC score for comparison.
-2. **Parameter learning:** conditional probability tables estimated with a BDeu prior to smooth sparse combinations (`pgmpy`).
+2. **Parameter learning:** conditional probability tables estimated with a BDeu prior (`pgmpy`). Severity has 96 parent combinations but only about 1,000 records, so the prior strength (equivalent sample size, ESS) was **tuned by 5-fold cross-validation** on log-loss. ESS = 100 was chosen; the minimum was at 200, but 100 was within 0.003 and kept a slightly better balanced F1.
 3. **Inference:** Variable Elimination, which works with any subset of known evidence and in any direction.
-4. **Decision rules:** a standard rule (most probable class) and a prior-adjusted rule that divides each probability by its class base rate, so rarer medium and high severities are not drowned out by "low".
+4. **Decision rules:** a standard rule (most probable class) and a prior-adjusted rule that divides each probability by its class base rate, so rarer medium and high severities are not drowned out by "low". When a combination of evidence has never been observed, all outcomes are equally likely, and the app reports "uncertain" instead of a class.
 5. **Evaluation:** stratified 80/20 hold-out test, 5-fold cross-validation, and baselines (majority class, Naive Bayes, Logistic Regression).
 
 ## Results
@@ -58,9 +58,9 @@ and AUC are reported as well.
 
 | Decision rule | Accuracy | Macro precision | Macro recall | Macro F1 | AUC |
 |---|---|---|---|---|---|
-| Standard | 0.687 | 0.553 | 0.416 | 0.411 | 0.667 |
-| Prior-adjusted | 0.597 | 0.461 | 0.472 | 0.463 | 0.667 |
-| Prior-adjusted, `size` unknown | 0.333 | 0.470 | 0.474 | 0.328 | 0.639 |
+| Standard | 0.687 | 0.553 | 0.416 | 0.411 | 0.661 |
+| Prior-adjusted | 0.582 | 0.447 | 0.465 | 0.450 | 0.661 |
+| Prior-adjusted, `size` unknown | 0.304 | 0.464 | 0.450 | 0.300 | 0.628 |
 
 **5-fold cross-validation (mean of 5 folds):**
 
@@ -71,19 +71,31 @@ and AUC are reported as well.
 | Naive Bayes | prior-adjusted | 0.537 | 0.443 | 0.525 | 0.671 |
 | Logistic Regression | standard | 0.688 | 0.395 | 0.205 | 0.678 |
 | Logistic Regression | prior-adjusted | 0.533 | 0.443 | 0.495 | 0.678 |
-| **Bayesian Network (expert)** | standard | **0.699** | 0.446 | 0.349 | 0.674 |
-| **Bayesian Network (expert)** | prior-adjusted | 0.588 | **0.471** | 0.390 | 0.674 |
-| Bayesian Network (learned) | standard | 0.681 | 0.352 | 0.186 | 0.611 |
-| Bayesian Network (learned) | prior-adjusted | 0.357 | 0.312 | 0.618 | 0.611 |
+| **Bayesian Network (expert)** | standard | **0.699** | **0.446** | 0.349 | 0.673 |
+| **Bayesian Network (expert)** | prior-adjusted | 0.567 | 0.455 | 0.411 | 0.673 |
+| Bayesian Network (learned) | standard | 0.681 | 0.355 | 0.196 | 0.578 |
+| Bayesian Network (learned) | prior-adjusted | 0.420 | 0.321 | 0.512 | 0.578 |
 
-Fold-to-fold standard deviation of macro-F1 is about 0.02 to 0.05 (0.08 for the learned structure), so small gaps
-between models are not conclusive.
+Fold-to-fold standard deviation of macro-F1 is about 0.02 to 0.05 for most models (about 0.10 for the learned
+structure under the prior-adjusted rule), so small gaps between models are not conclusive.
+
+**Prior strength tuning (5-fold CV, expert network):**
+
+| ESS | 1 | 10 | 50 | 100 | 200 | 500 | 1000 |
+|---|---|---|---|---|---|---|---|
+| Log-loss (lower is better) | 0.877 | 0.816 | 0.781 | 0.773 | **0.771** | 0.780 | 0.798 |
+| AUC | 0.672 | 0.674 | 0.676 | 0.673 | 0.673 | 0.658 | 0.643 |
+
+Stronger smoothing improves the quality of the probabilities (log-loss falls from 0.816 at ESS 10 to 0.773 at
+ESS 100) without changing standard accuracy or macro-F1. It also prevents single events from dominating a
+probability table: before tuning, one recorded event gave 94% for its class.
 
 **Interpretation**
-- The expert Bayesian Network has the best accuracy and macro-F1 and detects more high-severity events than the baselines under the standard rule. Its AUC is essentially tied with Naive Bayes and Logistic Regression, so it is competitive and far more interpretable rather than clearly more accurate.
-- The structure learned from data performed worse and varied between folds. With about 1,000 records BIC is conservative, and it produced non-causal links (such as season to zone), which supports using domain knowledge for the structure.
-- Landslide **size** is the strongest single driver of severity. Example inference: for a large landslide triggered by a downpour in the monsoon, the network gives about 40% probability of high severity, against roughly 10% for an average event.
-- In the diagnostic query, downpour accounts for about half of high-severity events but also about half of all events, so it does not distinguish deadly ones.
+- The expert Bayesian Network has the best accuracy and macro-F1 under the standard rule and detects more high-severity events than the baselines. Its AUC is essentially tied with Naive Bayes and Logistic Regression, so it is competitive and far more interpretable rather than clearly more accurate.
+- The structure learned from data performed worse (AUC 0.578) and varied widely between folds. With about 1,000 records BIC is conservative, and it produced non-causal links (such as season to zone), which supports using domain knowledge for the structure.
+- Landslide **size** is the strongest single driver of severity. Example inference: for a large landslide triggered by a downpour in the monsoon, the network gives about 42% probability of high severity (34% low, 24% medium), against roughly 10% for an average event.
+- Diagnostic query, P(trigger | high severity): rain (20%) and the merged rare "other" triggers (14%) are over-represented among high-severity events compared with their overall shares (about 15% and 4%), while downpour (41%) and continuous rain (10%) appear less often than in the data overall (about 54% and 17%).
+- Slopes above roads in the western Himalaya are mostly low severity (about 80% low, 14% medium, 6% high).
 - With `size` unknown, the prior-adjusted rule catches most high-severity events but raises many false alarms, which is the expected cost of missing information.
 
 <!-- Add your screenshots here, for example: -->
@@ -91,6 +103,7 @@ between models are not conclusive.
 
 ![Confusion matrices](model/confusion_matrix.png)
 ![Model comparison](model/cv_comparison.png)
+![Prior strength tuning](model/ess_tuning.png)
 ![Expert structure](model/network_expert.png)
 ![Learned structure](model/network_learned.png)
 
@@ -100,9 +113,11 @@ between models are not conclusive.
 ├── preprocess.py       # cleaning, discretization, encoding, feature scoring
 ├── train_model.py      # Bayesian Network training and hold-out evaluation
 ├── evaluate.py         # cross-validation, baselines, structure learning
+├── tune_ess.py         # prior-strength tuning by cross-validation
 ├── draw_networks.py    # regenerates the network diagrams
 ├── data/               # cleaned dataset and feature scores
 ├── model/              # trained model, metrics, figures
+├── .streamlit/         # app theme
 ├── requirements.txt
 └── README.md
 ```
@@ -117,6 +132,7 @@ pip install -r requirements.txt
 # download the NASA Global Landslide Catalog CSV into data/raw/Global_Landslide_Catalog_Export.csv
 python preprocess.py
 python train_model.py
+python tune_ess.py              # optional: re-tune the prior strength
 python evaluate.py
 streamlit run app.py
 ```
@@ -125,6 +141,8 @@ streamlit run app.py
 - The catalog is a 2016 export built mostly from media reports, so it is biased toward well-covered events and mostly contains rain-triggered landslides.
 - It has no population exposure, time of day, terrain or rainfall measurements, which strongly affect fatalities, so predictive power is modest (AUC about 0.67).
 - Regions are approximated from coordinates, and 1,004 records leave few examples of high-severity events (97).
+- Some combinations of size, trigger and setting never occur in the data, so their probability tables rest on the prior alone; the app reports these as "uncertain". This can also add false alarms under the prior-adjusted rule.
+- The prior strength was tuned on the same folds later used to report cross-validation results, so those figures may be slightly optimistic.
 - This is an academic prototype and must not be used for real safety decisions.
 
 ## Future Scope
